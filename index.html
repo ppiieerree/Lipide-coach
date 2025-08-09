@@ -1,176 +1,432 @@
-<script>
-// ====== Barèmes (1 très défavorable → 20 très bénéfique) ======
-const PROFILES = {
-  LEGUMES_FRAIS:        [19,18,19,20,20,20],
-  LEGUMES_FECULENTS:    [12,11,12,12,12,12],
-  FRUITS_ENTIERS:       [17,16,17,16,18,18],
-  LEGUMINEUSES:         [18,16,17,17,19,19],
-  CEREALES_COMPLETES:   [15,12,14,15,16,16],
-  CEREALES_RAFFINEES:   [10,9,10,9,11,12],
-  OLEAGINEUX_GRAINES:   [16,18,16,13,16,16],
-  POISSONS_GRAS:        [18,19,18,17,18,18],
-  POISSONS_MAIGRES:     [16,15,16,16,17,17],
-  FRUITS_DE_MER:        [15,14,15,15,16,16],
-  VOLAILLE_BLANCHE:     [13,12,13,14,14,14],
-  VIANDE_ROUGE:         [8, 8, 9, 12,10,10],
-  CHARCUTERIE:          [4, 5, 6, 10,6, 6],
-  FROMAGES_GRAS:        [7, 9, 9, 11,10, 9],
-  LAITAGES_ECREMES:     [13,12,13,13,13,13],
-  LAITS_VEGETAUX_NS:    [14,12,13,13,14,14],
-  HUILE_OLIVE:          [17,18,17,17,18,18],
-  HUILE_COLZA_NOIX_LIN: [18,18,18,17,18,18],
-  HUILES_SAT_TRANS:     [5, 6, 5, 10,7, 8],
-  SUCRES_AJOUTES:       [5, 5, 4, 5, 7,12],
-  BOISSONS_SUCREES:     [4, 5, 3, 4, 6,12],
-  BOISSONS_LIGHT_EDULCO:[11,10,11,12,11,11], // sodas “zero/light” (sans sucre)
-  ALCOOL_MODERE:        [9,11, 8, 9, 6, 9],
-  ALCOOL_FORT:          [6, 7, 5, 7, 4, 8],
-  FRITURE_SALEE:        [6, 7, 6, 9, 7, 6],
-  SAUCES_SALEES_SODIUM: [10,10,10,12,11, 6],
-  SAUCES_GRASSES_SUCRE: [7, 7, 6, 9, 8, 9],
-  CHOCOLAT_NOIR_70:     [12,13,11,11,11,12],
-};
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lipide Coach — version complète</title>
+  <style>
+    :root{
+      --fg:#111;--bg:#fff;--muted:#6b7280;--primary:#0ea5e9;--ring:#bae6fd;
+      --card:#ffffff;--border:#e5e7eb;--soft:#f7f8fa
+    }
+    *{box-sizing:border-box}
+    body{
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, sans-serif;
+      margin:0; color:var(--fg); background:var(--soft)
+    }
+    header{
+      position:sticky; top:0; z-index:10; background:var(--card);
+      border-bottom:1px solid var(--border); padding:14px 16px
+    }
+    h1{font-size:1.25rem; margin:0}
+    main{max-width:1000px; margin:0 auto; padding:16px}
+    .row{display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end}
+    .card{
+      background:var(--card); border:1px solid var(--border); border-radius:12px;
+      padding:14px; box-shadow:0 1px 0 rgba(0,0,0,.02)
+    }
+    label{display:block; font-weight:600; font-size:.9rem; margin-bottom:6px}
+    input, select, button, textarea{
+      font:inherit
+    }
+    input[type="text"], input[type="number"], select, textarea{
+      width:100%; padding:10px; border:1px solid #d1d5db; border-radius:10px; background:#fff
+    }
+    button{
+      border:none; padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600
+    }
+    .btn-primary{background:var(--primary); color:#fff}
+    .btn-soft{background:#eef6ff}
+    .btn-danger{background:#fee2e2}
+    .grid{display:grid; gap:12px}
+    .grid-3{grid-template-columns: repeat(3,1fr)}
+    .grid-2{grid-template-columns: repeat(2,1fr)}
+    .full{grid-column: 1 / -1}
+    table{width:100%; border-collapse:collapse; background:#fff; border-radius:12px; overflow:hidden}
+    th, td{padding:10px; border-bottom:1px solid #f0f2f5; text-align:right}
+    th:first-child, td:first-child{text-align:left}
+    tfoot td{font-weight:700; background:#fafafa}
+    .muted{color:var(--muted)}
+    .pill{display:inline-block; padding:3px 8px; border-radius:999px; background:#f1f5f9; font-size:.75rem}
+    .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; background:#f3f4f6; padding:2px 6px; border-radius:6px}
+    .hint{font-size:.85rem; color:var(--muted)}
+    .toolbar{display:flex; gap:8px; flex-wrap:wrap}
+    details summary{cursor:pointer; user-select:none; font-weight:600}
+    .suggest{position:relative}
+    .suggest-list{
+      position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #e5e7eb;
+      border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.08); z-index:20; max-height:280px; overflow:auto
+    }
+    .suggest-item{padding:8px 10px; display:flex; justify-content:space-between; gap:8px}
+    .suggest-item:hover{background:#f8fafc}
+    .nowrap{white-space:nowrap}
+    .badge{font-size:.7rem; padding:2px 6px; border-radius:8px; background:#eff6ff}
+    .totals{display:flex; gap:10px; flex-wrap:wrap}
+    .totals .pill{background:#eef2ff}
+    .footnote{font-size:.8rem; color:#6b7280}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Lipide Coach <span class="pill">local-first</span></h1>
+    <div class="hint">Tape un aliment, choisis quantité (<span class="kbd">g</span> ou <span class="kbd">portion</span>), ajoute. Les totaux se mettent à jour.</div>
+  </header>
 
-// ====== Normalisation ======
-const norm = s => s
-  .toLowerCase()
-  .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-  .replace(/’/g,"'").replace(/[\.\(\)]/g,' ')
-  .replace(/\s+/g,' ').trim();
+  <main class="grid">
+    <section class="card grid grid-3 full">
+      <div class="suggest">
+        <label for="food">Aliment / plat</label>
+        <input id="food" type="text" placeholder="ex. avocat, saumon, baguette, lasagnes…" autocomplete="off" />
+        <div id="suggestions" class="suggest-list" hidden></div>
+      </div>
+      <div>
+        <label for="qty">Quantité</label>
+        <input id="qty" type="number" step="1" min="0" value="100" />
+      </div>
+      <div>
+        <label for="unit">Unité</label>
+        <select id="unit">
+          <option value="g">g</option>
+          <option value="portion">portion</option>
+        </select>
+      </div>
+      <div class="toolbar full">
+        <button id="add" class="btn-primary">Ajouter à la sélection</button>
+        <button id="save" class="btn-soft">Sauver (local)</button>
+        <button id="load" class="btn-soft">Charger</button>
+        <button id="clear" class="btn-danger">Vider</button>
+        <details>
+          <summary>Importer / Exporter</summary>
+          <div class="row" style="margin-top:8px">
+            <input id="file" type="file" accept=".json,.csv" />
+            <button id="import" class="btn-soft">Importer</button>
+            <button id="export-json" class="btn-soft">Exporter JSON</button>
+            <button id="export-csv" class="btn-soft">Exporter CSV</button>
+          </div>
+          <p class="hint">Tu peux importer ta base personnalisée (JSON ou CSV). Les champs attendus : <code>nom, lipides, sat, glucides, proteines, kcal, portion_g</code>.</p>
+        </details>
+      </div>
+    </section>
 
-// ====== Listes d'aliments étendues ======
-const LISTES = {
-  POISSONS_GRAS: ['saumon','truite','sardines','maquereau','hareng','anchois','thon rouge','anguille'],
-  POISSONS_MAIGRES: ['cabillaud','colin','merlu','lieu','haddock','carrelet','sole','tilapia','perche','brochet','morue'],
-  FRUITS_DE_MER: ['crevettes','gambas','langoustines','moules','coques','palourdes','huitres','huîtres','calamar','poulpe','crabe','tourteau','homard'],
-  VOLAILLE_BLANCHE: ['poulet','blanc de poulet','dinde','blanc de dinde','escalope de poulet','poulet roti','poulet rôti'],
-  VIANDE_ROUGE: ['boeuf','bœuf','steak','entrecote','entrecôte','faux filet','rumsteck','joue de boeuf','agneau','cotelette agneau','mouton','veau','porc','cote de porc','côte de porc'],
-  CHARCUTERIE: ['jambon','jambon cru','jambon blanc','saucisson','chorizo','salami','bacon','lard','pancetta','coppa','rosette','andouille','andouillette','rillettes','pâté','pate en croute','knack','saucisse','merguez','chipolata','mortadelle','boudin noir'],
-  FROMAGES_GRAS: ['camembert','brie','coulommiers','chaource','reblochon','munster','epoisses','époisses','roquefort','bleu','fourme d ambert','comte','comté','emmental','gouda','cheddar','raclette','tomme','parmesan','mozzarella','feta','fêta','buche de chevre','bûche de chèvre','chevre','chèvre'],
-  LAITAGES_ECREMES: ['yaourt 0%','yaourt nature','skyr','fromage blanc 0%','cottage cheese','petit suisse 0%','lait ecreme','lait demi ecreme'],
-  LAITS_VEGETAUX_NS: ['lait de soja non sucre','lait d amande non sucre','lait d avoine non sucre','boisson vegetale non sucree','boisson végétale non sucrée'],
-  HUILE_OLIVE: ['huile d olive','olive huile'],
-  HUILE_COLZA_NOIX_LIN: ['huile de colza','huile de noix','huile de lin','huile de pepins de raisin','huile de pépins de raisin'],
-  HUILES_SAT_TRANS: ['beurre','beurre clarifie','ghee','huile de palme','huile de coco','margarine hydrogenee','graisse de canard','saindoux'],
-  OLEAGINEUX_GRAINES: ['noix','noix de pecan','noix de macadamia','amandes','noisettes','pistaches','noix de cajou','cacahuetes','cacahuètes','beurre de cacahuete sans sucre','graines de tournesol','graines de courge','graines de lin','graines de sesame','graines de sésame','tahini'],
-  LEGUMES_FRAIS: ['salade','laitue','roquette','mache','mâche','epinards','épinards','blettes','chou','chou kale','chou rouge','chou fleur','chou-fleur','brocoli','haricots verts','courgette','aubergine','poivron','tomate','concombre','radis','carotte','fenouil','celeri branche','céleri branche','oignon','ail','champignons','asperges','endives','navet','betterave cuite','courge','butternut','potimarron','artichaut'],
-  LEGUMES_FECULENTS: ['pomme de terre vapeur','pomme de terre','patate douce','mais','maïs','petits pois','igname','manioc'],
-  FRUITS_ENTIERS: ['pomme','poire','banane','orange','mandarine','clementine','clémentine','citron','pamplemousse','raisin','fraise','framboise','myrtille','mûre','mure','cerise','abricot','peche','pêche','nectarine','prune','kiwi','mangue','ananas','papaye','grenade','figue','dattes'],
-  LEGUMINEUSES: ['lentilles','pois chiches','pois casses','pois cassés','haricots rouges','haricots blancs','haricots noirs','flageolets','soja edamame','edamame','feves','fèves'],
-  CEREALES_COMPLETES: ['pain complet','pain au levain integral','pain au levain intégral','pain seigle','pain sarrasin','pain aux cereales','riz complet','riz brun','quinoa','pates completes','pâtes complètes','pates semi completes','boulgour complet','orge','millet','flocons d avoine','son d avoine','muesli sans sucre'],
-  CEREALES_RAFFINEES: ['pain blanc','baguette','pain de mie','biscotte','riz blanc','pates','pâtes','semoule','couscous','polenta','tortilla ble','wrap','galette de riz','crepes farine blanche','crêpes farine blanche','viennoiserie nature'],
-  SUCRES_AJOUTES: ['sucre','cassonade','sirop','miel','confiture','pate a tartiner','pâte à tartiner','chocolat au lait','barre chocolatée','bonbons','biscuits','patisserie','pâtisserie','croissant','pain au chocolat','brioche sucree','brioche sucrée','gaufre sucree','pancakes sirop','glace','dessert lacte sucre','dessert lacté sucré'],
-  BOISSONS_SUCREES: ['soda','cola','coca','pepsi','orangina','oasis','limonade','ice tea sucre','thé glacé sucré','boisson energetique','boisson énergétique','red bull','monster','jus d orange','jus d\'orange','jus de pomme','jus de fruits','nectar','smoothie sucre','smoothie sucré'],
-  BOISSONS_LIGHT_EDULCO: ['coca zero','coca zéro','coca light','pepsi max','ice tea zero','thé glacé zéro','red bull sugarfree','boisson 0% sucre','soda zero','soda zéro','orangina zero','oasis zero'],
-  ALCOOL_MODERE: ['biere','bière','vin','cidre','spritz','aperol spritz'],
-  ALCOOL_FORT: ['whisky','vodka','rhum','gin','tequila','liqueur','pastis','cognac'],
-  FRITURE_SALEE: ['frites','patatas bravas','beignets sales','beignets salés','nuggets','cordon bleu','escalope panee','escalope panée','poisson pane','poisson pané','tempura','onion rings','chips','tacos frits'],
-  SAUCES_SALEES_SODIUM: ['sauce soja','tamari','maggi','nuoc mam','nuoc-mam','anchovy sauce','pate miso','pâte miso','bouillon cube','cornichons','olives salees','olives salées'],
-  SAUCES_GRASSES_SUCRE: ['mayonnaise','sauce bearnaise','béarnaise','hollandaise','aioli','aïoli','sauce barbecue','bbq','ketchup','sauce cocktail','andalouse','samourai','samouraï','biggy burger','vinaigrette toute prete','vinaigrette toute prête'],
-  CHOCOLAT_NOIR_70: ['chocolat noir 70%','chocolat noir','cacao 100%'],
+    <section class="full">
+      <table id="meal">
+        <thead>
+          <tr>
+            <th>Aliment</th>
+            <th class="nowrap">Qté (g)</th>
+            <th>Lipides (g)</th>
+            <th>Sat. (g)</th>
+            <th>Gluc. (g)</th>
+            <th>Prot. (g)</th>
+            <th>Kcal</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr>
+            <td>Totaux</td>
+            <td id="t_qte">0</td>
+            <td id="t_lip">0</td>
+            <td id="t_sat">0</td>
+            <td id="t_glu">0</td>
+            <td id="t_pro">0</td>
+            <td id="t_kcal">0</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+      <div class="totals" style="margin-top:10px">
+        <span class="pill"><strong>Ratio lipides/kcal</strong> : <span id="ratio">0%</span></span>
+        <span class="pill"><strong>AG saturés</strong> : <span id="satShare">0%</span> des lipides</span>
+      </div>
+      <p class="footnote">Valeurs pour 100 g (ou par portion si sélectionnée), d’après moyennes nutritionnelles usuelles. Les plats “maisons” sont des approximations pratiques.</p>
+    </section>
 
-  // === Marques & produits courants (FR) ===
-  SUCRES_AJOUTES_plus: [
-    'nutella','kinder bueno','kinder maxi','kinder country','bn','granola lu','prince lu','oreo','pepito','pépito','petit beurre','petit écolier',
-    'danette','danonino','yop','actimel','crème dessert','maltesers','twix','snickers','mars','lion','bounty','haribo','skittles',
-    'nesquik','cereales chocapic','céréales chocapic','chocapic','golden grahams','frosties','smacks','miel pops',
-    'magnum','haagen dazs','häagen dazs','haagen-dazs','ben and jerry'
-  ],
-  BOISSONS_SUCREES_plus: [
-    'oasis tropical','oasis pomme cassis framboise','orangina rouge','fanta','sprite','schweppes agrum','schweppes tonic','icetea peach','liptonic'
-  ],
-  BOISSONS_LIGHT_EDULCO_plus: [
-    'coca zero cherry','coca zero caffeine free','pepsi max cherry','schweppes zero','fanta zero','sprite zero'
-  ],
+    <section class="card full">
+      <details>
+        <summary>Base aliments — aperçu</summary>
+        <div id="catalog-preview" class="hint" style="margin-top:8px"></div>
+      </details>
+    </section>
+  </main>
 
-  // === Plats/brasserie & restauration rapide (classés par “dominante”) ===
-  FRITURE_SALEE_plus: ['steak frites','moules frites','fish and chips','calamar frit','beignets de poulet','fondu de camembert frit'],
-  FROMAGES_GRAS_plus: ['croque monsieur','croque-monsieur','tartiflette','raclette','fondue savoyarde','pizza','pizza 4 fromages','pizza quatre fromages','pizza royale','gratin dauphinois','cordon bleu (plat)'],
-  CHARCUTERIE_plus: ['kebab sauce blanche','assiette charcuterie','planche charcuterie'],
-  SAUCES_GRASSES_SUCRE_plus: ['salade cesar','salade césar','caesar salad','burger sauce','wrap sauce blanche'],
-  CEREALES_RAFFINEES_plus: ['burger','big mac','whopper','tacos','panini','baguette sandwich','croissant jambon fromage','pates carbo','pâtes carbo','pates bolognaise','pâtes bolognaise','sushi','makis','poke bowl riz blanc'],
-  CEREALES_COMPLETES_plus: ['buddha bowl','poke bowl quinoa','salade quinoa','bol avoine','porridge avoine'],
-  VOLAILLE_BLANCHE_plus: ['tikka poulet (sans sauce)','poulet grillé simple'],
-  VIANDE_ROUGE_plus: ['tartare de boeuf','entrecote grillée','entrecôte grillée']
-};
+  <script>
+  // ====== Base de données aliments (élargie) ======
+  // Champs: nom, lipides (g/100g), sat (g/100g), glucides (g/100g), proteines (g/100g), kcal (kcal/100g), portion_g
+  // portion_g = poids d’une portion courante (si pertinent)
+  const DB = [
+    // Huiles, beurres
+    {nom:"Huile d'olive", lipides:100, sat:14, glucides:0, proteines:0, kcal:900, portion_g:10},
+    {nom:"Huile de colza", lipides:100, sat:7, glucides:0, proteines:0, kcal:900, portion_g:10},
+    {nom:"Beurre doux", lipides:82, sat:51, glucides:1, proteines:0.6, kcal:744, portion_g:10},
+    {nom:"Margarine", lipides:80, sat:20, glucides:1, proteines:0, kcal:720, portion_g:10},
 
-// Intégration des “_plus”
-LISTES.SUCRES_AJOUTES.push(...(LISTES.SUCRES_AJOUTES_plus||[]));
-LISTES.BOISSONS_SUCREES.push(...(LISTES.BOISSONS_SUCREES_plus||[]));
-LISTES.BOISSONS_LIGHT_EDULCO.push(...(LISTES.BOISSONS_LIGHT_EDULCO_plus||[]));
-LISTES.FRITURE_SALEE.push(...(LISTES.FRITURE_SALEE_plus||[]));
-LISTES.FROMAGES_GRAS.push(...(LISTES.FROMAGES_GRAS_plus||[]));
-LISTES.CHARCUTERIE.push(...(LISTES.CHARCUTERIE_plus||[]));
-LISTES.SAUCES_GRASSES_SUCRE.push(...(LISTES.SAUCES_GRASSES_SUCRE_plus||[]));
-LISTES.CEREALES_RAFFINEES.push(...(LISTES.CEREALES_RAFFINEES_plus||[]));
-LISTES.CEREALES_COMPLETES.push(...(LISTES.CEREALES_COMPLETES_plus||[]));
-LISTES.VOLAILLE_BLANCHE.push(...(LISTES.VOLAILLE_BLANCHE_plus||[]));
-LISTES.VIANDE_ROUGE.push(...(LISTES.VIANDE_ROUGE_plus||[]));
-['SUCRES_AJOUTES_plus','BOISSONS_SUCREES_plus','BOISSONS_LIGHT_EDULCO_plus','FRITURE_SALEE_plus','FROMAGES_GRAS_plus','CHARCUTERIE_plus','SAUCES_GRASSES_SUCRE_plus','CEREALES_RAFFINEES_plus','CEREALES_COMPLETES_plus','VOLAILLE_BLANCHE_plus','VIANDE_ROUGE_plus'].forEach(k=>delete LISTES[k]);
+    // Fruits oléagineux
+    {nom:"Amande", lipides:50, sat:4, glucides:9, proteines:21, kcal:579, portion_g:30},
+    {nom:"Noisette", lipides:61, sat:4.5, glucides:7, proteines:15, kcal:628, portion_g:30},
+    {nom:"Noix", lipides:65, sat:6, glucides:7, proteines:15, kcal:654, portion_g:30},
+    {nom:"Pistache", lipides:46, sat:6, glucides:28, proteines:20, kcal:562, portion_g:30},
+    {nom:"Cacahuète", lipides:49, sat:7, glucides:16, proteines:26, kcal:567, portion_g:30},
 
-// ====== Dictionnaire construit ======
-function makeDict(def){
-  const map={};
-  for(const [cat,arr] of Object.entries(def)){
-    for(const item of arr) map[norm(item)]=cat;
+    // Fruits & légumes
+    {nom:"Avocat", lipides:15, sat:2.1, glucides:9, proteines:2, kcal:160, portion_g:100},
+    {nom:"Tomate", lipides:0.2, sat:0, glucides:3.5, proteines:0.8, kcal:18, portion_g:120},
+    {nom:"Carotte", lipides:0.2, sat:0, glucides:7, proteines:0.9, kcal:41, portion_g:80},
+    {nom:"Pomme", lipides:0.3, sat:0.05, glucides:12, proteines:0.3, kcal:52, portion_g:150},
+    {nom:"Banane", lipides:0.3, sat:0.1, glucides:20, proteines:1.1, kcal:96, portion_g:120},
+    {nom:"Brocoli", lipides:0.4, sat:0.1, glucides:7, proteines:2.8, kcal:34, portion_g:90},
+    {nom:"Courgette", lipides:0.4, sat:0.1, glucides:3.1, proteines:1.2, kcal:17, portion_g:120},
+    {nom:"Pomme de terre (cuite)", lipides:0.1, sat:0, glucides:17, proteines:2, kcal:87, portion_g:150},
+
+    // Céréales & pains
+    {nom:"Riz blanc cuit", lipides:0.4, sat:0.1, glucides:28, proteines:2.7, kcal:130, portion_g:150},
+    {nom:"Pâtes cuites", lipides:1.1, sat:0.2, glucides:25, proteines:4.7, kcal:131, portion_g:180},
+    {nom:"Quinoa cuit", lipides:1.9, sat:0.2, glucides:21, proteines:4.4, kcal:120, portion_g:150},
+    {nom:"Boulgour cuit", lipides:0.2, sat:0, glucides:18, proteines:3.1, kcal:83, portion_g:150},
+    {nom:"Pain baguette", lipides:1, sat:0.2, glucides:56, proteines:8, kcal:270, portion_g:60},
+    {nom:"Pain complet", lipides:3, sat:0.5, glucides:41, proteines:9, kcal:247, portion_g:50},
+    {nom:"Flocons d'avoine", lipides:7, sat:1.2, glucides:60, proteines:13, kcal:379, portion_g:40},
+
+    // Produits laitiers
+    {nom:"Lait demi-écrémé", lipides:1.6, sat:1, glucides:5, proteines:3.4, kcal:47, portion_g:200},
+    {nom:"Yaourt nature", lipides:3.3, sat:2.1, glucides:4.7, proteines:4, kcal:61, portion_g:125},
+    {nom:"Fromage blanc 20%", lipides:3, sat:2, glucides:3.9, proteines:8.5, kcal:80, portion_g:100},
+    {nom:"Emmental", lipides:28, sat:18, glucides:0, proteines:27, kcal:380, portion_g:30},
+    {nom:"Camembert", lipides:21, sat:14, glucides:0.5, proteines:20, kcal:290, portion_g:30},
+    {nom:"Mozzarella", lipides:17, sat:11, glucides:3, proteines:22, kcal:280, portion_g:30},
+
+    // Viandes, poissons, œufs
+    {nom:"Poulet (blanc, cuit)", lipides:3.6, sat:1, glucides:0, proteines:31, kcal:165, portion_g:120},
+    {nom:"Bœuf steak 5% MG (cuit)", lipides:6, sat:2.5, glucides:0, proteines:27, kcal:170, portion_g:120},
+    {nom:"Porc échine (cuit)", lipides:20, sat:7.5, glucides:0, proteines:26, kcal:280, portion_g:120},
+    {nom:"Saumon (cuit)", lipides:13, sat:3, glucides:0, proteines:25, kcal:208, portion_g:120},
+    {nom:"Thon au naturel (égoutté)", lipides:1, sat:0.3, glucides:0, proteines:24, kcal:109, portion_g:100},
+    {nom:"Œuf", lipides:10.6, sat:3.3, glucides:1.1, proteines:12.6, kcal:143, portion_g:60},
+
+    // Produits sucrés / snacks
+    {nom:"Chocolat noir 70%", lipides:43, sat:25, glucides:46, proteines:8, kcal:598, portion_g:20},
+    {nom:"Biscuit sablé", lipides:18, sat:9, glucides:67, proteines:6, kcal:490, portion_g:15},
+    {nom:"Pâte à tartiner", lipides:31, sat:10, glucides:57, proteines:6, kcal:539, portion_g:15},
+    {nom:"Chips nature", lipides:35, sat:3, glucides:49, proteines:6, kcal:536, portion_g:30},
+    {nom:"Croissant", lipides:21, sat:13, glucides:45, proteines:8, kcal:406, portion_g:55},
+
+    // Légumineuses
+    {nom:"Lentilles cuites", lipides:0.4, sat:0.1, glucides:20, proteines:9, kcal:116, portion_g:180},
+    {nom:"Pois chiches cuits", lipides:3, sat:0.3, glucides:27, proteines:9, kcal:164, portion_g:150},
+    {nom:"Haricots rouges cuits", lipides:0.5, sat:0.1, glucides:22, proteines:8.7, kcal:127, portion_g:150},
+
+    // Plats courants (approximations réalistes)
+    {nom:"Lasagnes bolognaise (maison)", lipides:9, sat:4, glucides:16, proteines:8, kcal:190, portion_g:250},
+    {nom:"Gratin dauphinois", lipides:10, sat:6, glucides:13, proteines:3, kcal:165, portion_g:200},
+    {nom:"Quiche lorraine", lipides:17, sat:8, glucides:19, proteines:10, kcal:270, portion_g:130},
+    {nom:"Pizza margherita", lipides:9, sat:4, glucides:28, proteines:10, kcal:240, portion_g:120},
+    {nom:"Burger classique", lipides:13, sat:5, glucides:25, proteines:15, kcal:270, portion_g:180},
+    {nom:"Frites (four)", lipides:8, sat:1.2, glucides:33, proteines:3.4, kcal:230, portion_g:150},
+    {nom:"Poulet rôti (avec peau)", lipides:12, sat:3.5, glucides:0, proteines:26, kcal:220, portion_g:150},
+    {nom:"Ratatouille maison", lipides:4, sat:0.6, glucides:7, proteines:2, kcal:80, portion_g:200},
+    {nom:"Salade César (classique)", lipides:14, sat:4, glucides:6, proteines:10, kcal:190, portion_g:200},
+    {nom:"Couscous poulet-légumes", lipides:6, sat:1.5, glucides:20, proteines:8, kcal:170, portion_g:250},
+    {nom:"Paella mixte", lipides:7, sat:1.6, glucides:22, proteines:9, kcal:190, portion_g:250},
+    {nom:"Bœuf bourguignon", lipides:8, sat:3, glucides:3, proteines:12, kcal:140, portion_g:250},
+    {nom:"Blanquette de veau", lipides:9, sat:4, glucides:4, proteines:12, kcal:165, portion_g:250},
+    {nom:"Chili con carne", lipides:6, sat:2, glucides:12, proteines:10, kcal:150, portion_g:250},
+    {nom:"Tajine poulet-abricots", lipides:7, sat:1.5, glucides:15, proteines:9, kcal:160, portion_g:250},
+    {nom:"Sushi (moyenne assortiment)", lipides:4, sat:1, glucides:28, proteines:11, kcal:190, portion_g:180},
+    {nom:"Poke bowl saumon", lipides:10, sat:2.2, glucides:22, proteines:14, kcal:230, portion_g:350},
+    {nom:"Kebab sandwich", lipides:12, sat:4, glucides:23, proteines:16, kcal:250, portion_g:250},
+    {nom:"Falafel (3 pièces)", lipides:11, sat:1.5, glucides:18, proteines:7, kcal:220, portion_g:90},
+    {nom:"Hummus", lipides:19, sat:2.3, glucides:14, proteines:8, kcal:290, portion_g:30},
+    {nom:"Tartiflette", lipides:16, sat:9, glucides:13, proteines:10, kcal:240, portion_g:250},
+    {nom:"Crêpe au sucre", lipides:7, sat:3.5, glucides:35, proteines:6, kcal:260, portion_g:80},
+    {nom:"Salade niçoise", lipides:9, sat:1.8, glucides:6, proteines:10, kcal:150, portion_g:250},
+    {nom:"Bœuf grillé + haricots verts", lipides:7, sat:2.5, glucides:3, proteines:20, kcal:160, portion_g:220}
+  ];
+
+  // ====== Utilitaires ======
+  const $ = q => document.querySelector(q);
+  const format = n => (Math.round(n * 10) / 10).toLocaleString('fr-FR');
+
+  // Index simple pour suggestions
+  const INDEX = DB.map((x,i)=>({k: x.nom.toLowerCase(), i}));
+
+  // ====== Autocomplete ======
+  const input = $('#food');
+  const list = $('#suggestions');
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q){ list.hidden = true; return; }
+    const hits = INDEX.filter(o => o.k.includes(q)).slice(0, 20).map(o => DB[o.i]);
+    renderSuggest(hits);
+  });
+  input.addEventListener('focus', () => input.dispatchEvent(new Event('input')));
+
+  function renderSuggest(items){
+    list.innerHTML = '';
+    if (!items.length){ list.hidden = true; return; }
+    items.forEach(item=>{
+      const row = document.createElement('div');
+      row.className = 'suggest-item';
+      row.innerHTML = `
+        <span>${item.nom}</span>
+        <span class="muted nowrap">
+          <span class="badge">${item.lipides} g lip.</span>
+          <span class="badge">${item.kcal} kcal</span>
+          ${item.portion_g?`<span class="badge">portion ≈ ${item.portion_g} g</span>`:''}
+        </span>`;
+      row.addEventListener('click', ()=> {
+        input.value = item.nom;
+        list.hidden = true;
+      });
+      list.appendChild(row);
+    });
+    list.hidden = false;
   }
-  return map;
-}
-const DICT = makeDict(LISTES);
 
-// ====== Fallbacks sémantiques (sécurité) ======
-const KEYWORD_FALLBACKS = [
-  {kw:['legume','crudite','salade','roquette','epinard','brocoli','chou','carotte','courgette','poivron','tomate'], cat:'LEGUMES_FRAIS'},
-  {kw:['patate','pomme de terre','mais','petits pois','patate douce'], cat:'LEGUMES_FECULENTS'},
-  {kw:['fruit','pomme','poire','banane','framboise','fraise','raisin','agrumes','orange'], cat:'FRUITS_ENTIERS'},
-  {kw:['lentille','pois chiche','haricot','flageolet','edamame','feve'], cat:'LEGUMINEUSES'},
-  {kw:['complet','levain','seigle','sarrasin','avoine','quinoa','orge','riz brun'], cat:'CEREALES_COMPLETES'},
-  {kw:['pain','baguette','riz blanc','pates','semoule','couscous','tortilla','polenta','galette'], cat:'CEREALES_RAFFINEES'},
-  {kw:['noix','amande','noisette','pistache','cacahuete','graines'], cat:'OLEAGINEUX_GRAINES'},
-  {kw:['saumon','sardine','maquereau','hareng','truite'], cat:'POISSONS_GRAS'},
-  {kw:['cabillaud','colin','merlu','sole','tilapia','morue'], cat:'POISSONS_MAIGRES'},
-  {kw:['crevette','moule','huitre','calamar','poulpe'], cat:'FRUITS_DE_MER'},
-  {kw:['poulet','dinde','volaille'], cat:'VOLAILLE_BLANCHE'},
-  {kw:['boeuf','porc','agneau','veau','steak','entrecote'], cat:'VIANDE_ROUGE'},
-  {kw:['jambon','saucisson','bacon','lard','chorizo','charcuterie'], cat:'CHARCUTERIE'},
-  {kw:['fromage','raclette','tartiflette','pizza','quiche','croque'], cat:'FROMAGES_GRAS'},
-  {kw:['yaourt','skyr','fromage blanc','lait ecreme'], cat:'LAITAGES_ECREMES'},
-  {kw:['soja non sucre','amande non sucre','avoine non sucre','boisson vegetale'], cat:'LAITS_VEGETAUX_NS'},
-  {kw:['huile olive'], cat:'HUILE_OLIVE'},
-  {kw:['huile colza','huile noix','huile lin','pepins de raisin'], cat:'HUILE_COLZA_NOIX_LIN'},
-  {kw:['beurre','palme','coco','margarine'], cat:'HUILES_SAT_TRANS'},
-  {kw:['sucre','confiture','patisserie','biscuit','chocolat au lait','bonbon','tartiner','nutella','kinder','oreo','bn','prince'], cat:'SUCRES_AJOUTES'},
-  {kw:['soda','cola','oasis','orangina','fanta','sprite','jus','nectar','energy drink','the glace'], cat:'BOISSONS_SUCREES'},
-  {kw:['zero','light','sans sucre','sugarfree','max'], cat:'BOISSONS_LIGHT_EDULCO'},
-  {kw:['biere','vin','cidre','spritz'], cat:'ALCOOL_MODERE'},
-  {kw:['whisky','vodka','rhum','gin','tequila','liqueur','pastis'], cat:'ALCOOL_FORT'},
-  {kw:['frites','pane','nuggets','beignet','chips','tempura','onion rings'], cat:'FRITURE_SALEE'},
-  {kw:['soja sauce','tamari','bouillon','maggi','nuoc mam'], cat:'SAUCES_SALEES_SODIUM'},
-  {kw:['mayonnaise','bbq','ketchup','bearnaise','hollandaise','aioli','cesar'], cat:'SAUCES_GRASSES_SUCRE'},
-  {kw:['chocolat noir'], cat:'CHOCOLAT_NOIR_70'},
-  {kw:['sushi','maki','poke bowl'], cat:'CEREALES_RAFFINEES'}
-];
+  // ====== Ajout au repas ======
+  const tbody = document.querySelector('#meal tbody');
+  $('#add').addEventListener('click', () => {
+    const name = input.value.trim();
+    const qty = parseFloat($('#qty').value || '0');
+    const unit = $('#unit').value;
+    if (!name || !qty) return;
 
-// ====== Classif robuste ======
-function classify(raw){
-  const t = norm(raw);
-  if(!t) return null;
-  if(DICT[t]) return DICT[t];
-  for(const key in DICT){ if(t.includes(key)) return DICT[key]; }
-  for(const rule of KEYWORD_FALLBACKS){
-    for(const w of rule.kw){ if(t.includes(norm(w))) return rule.cat; }
+    const rec = DB.find(x => x.nom.toLowerCase() === name.toLowerCase());
+    if (!rec){ alert("Aliment non trouvé dans la base."); return; }
+    const grams = unit === 'g' ? qty : (rec.portion_g || 100) * qty;
+
+    const factor = grams / 100;
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${rec.nom}</td>
+      <td>${format(grams)}</td>
+      <td>${format(rec.lipides * factor)}</td>
+      <td>${format(rec.sat * factor)}</td>
+      <td>${format(rec.glucides * factor)}</td>
+      <td>${format(rec.proteines * factor)}</td>
+      <td>${format(rec.kcal * factor)}</td>
+      <td><button class="btn-danger">Supprimer</button></td>
+    `;
+    row.querySelector('button').addEventListener('click', () => { row.remove(); computeTotals(); });
+    tbody.appendChild(row);
+    computeTotals();
+    input.value = '';
+    list.hidden = true;
+  });
+
+  function computeTotals(){
+    let q=0, lip=0, sat=0, glu=0, pro=0, kcal=0;
+    [...tbody.rows].forEach(r=>{
+      q   += parseNumber(r.cells[1].textContent);
+      lip += parseNumber(r.cells[2].textContent);
+      sat += parseNumber(r.cells[3].textContent);
+      glu += parseNumber(r.cells[4].textContent);
+      pro += parseNumber(r.cells[5].textContent);
+      kcal+= parseNumber(r.cells[6].textContent);
+    });
+    $('#t_qte').textContent = format(q);
+    $('#t_lip').textContent = format(lip);
+    $('#t_sat').textContent = format(sat);
+    $('#t_glu').textContent = format(glu);
+    $('#t_pro').textContent = format(pro);
+    $('#t_kcal').textContent = format(kcal);
+    $('#ratio').textContent = kcal ? Math.round((lip*9)/kcal*100) + '%' : '0%';
+    $('#satShare').textContent = lip ? Math.round((sat/lip)*100) + '%' : '0%';
   }
-  return null;
-}
-<<script>
-// === Ajout de plats précis ===
-LISTES.LEGUMINEUSES.push('cassoulet');
-LISTES.CEREALES_RAFFINEES.push(
-  'couscous','paella','risotto','galette complete','galette complète',
-  'bo bun','pho','pad thai','pizza margherita','lasagnes'
-);
-LISTES.CHARCUTERIE.push('choucroute garnie','pizza pepperoni','quiche lorraine');
-LISTES.FROMAGES_GRAS.push('raclette complete','raclette complète','tartiflette','fondue savoyarde','gratin dauphinois');
-LISTES.VIANDE_ROUGE.push('blanquette de veau','boeuf bourguignon');
-LISTES.CEREALES_COMPLETES.push('bibimbap');
-</script>/script>
+  function parseNumber(s){ return parseFloat(String(s).replace(/\s/g,'').replace(',','.'))||0 }
+
+  // ====== Sauvegarde locale ======
+  $('#save').addEventListener('click', ()=>{
+    const rows = [...tbody.rows].map(r=>({
+      nom: r.cells[0].textContent,
+      grams: parseNumber(r.cells[1].textContent)
+    }));
+    localStorage.setItem('lipidecoach_meal', JSON.stringify(rows));
+  });
+  $('#load').addEventListener('click', ()=>{
+    const raw = localStorage.getItem('lipidecoach_meal');
+    if (!raw) return;
+    tbody.innerHTML='';
+    JSON.parse(raw).forEach(({nom, grams})=>{
+      const rec = DB.find(x=>x.nom===nom);
+      if(!rec) return;
+      const factor = grams/100;
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${rec.nom}</td>
+        <td>${format(grams)}</td>
+        <td>${format(rec.lipides * factor)}</td>
+        <td>${format(rec.sat * factor)}</td>
+        <td>${format(rec.glucides * factor)}</td>
+        <td>${format(rec.proteines * factor)}</td>
+        <td>${format(rec.kcal * factor)}</td>
+        <td><button class="btn-danger">Supprimer</button></td>`;
+      row.querySelector('button').addEventListener('click', () => { row.remove(); computeTotals(); });
+      tbody.appendChild(row);
+    });
+    computeTotals();
+  });
+  $('#clear').addEventListener('click', ()=>{ tbody.innerHTML=''; computeTotals(); });
+
+  // ====== Import / Export base ======
+  $('#export-json').addEventListener('click', ()=> download('base_aliments.json', JSON.stringify(DB, null, 2)));
+  $('#export-csv').addEventListener('click', ()=> {
+    const head = 'nom,lipides,sat,glucides,proteines,kcal,portion_g';
+    const lines = DB.map(x=>[x.nom,x.lipides,x.sat,x.glucides,x.proteines,x.kcal,x.portion_g??''].join(','));
+    download('base_aliments.csv',[head,...lines].join('\n'));
+  });
+  $('#import').addEventListener('click', async ()=>{
+    const f = $('#file').files[0]; if(!f) return;
+    const text = await f.text();
+    let items=[];
+    if (f.name.endsWith('.json')){ items = JSON.parse(text); }
+    else { // CSV
+      items = csvParse(text);
+    }
+    // merge (remplace si même nom)
+    items.forEach(it=>{
+      const idx = DB.findIndex(x=>x.nom.toLowerCase()===String(it.nom).toLowerCase());
+      const clean = {
+        nom:String(it.nom),
+        lipides:+it.lipides||0, sat:+it.sat||0, glucides:+it.glucides||0, proteines:+it.proteines||0, kcal:+it.kcal||0,
+        portion_g: it.portion_g? +it.portion_g : undefined
+      };
+      if (idx>=0) DB[idx]=clean; else DB.push(clean);
+    });
+    rebuildIndex();
+    alert('Base mise à jour : '+items.length+' éléments importés');
+    renderCatalogPreview();
+  });
+
+  function csvParse(s){
+    const lines = s.trim().split(/\r?\n/);
+    const head = lines.shift().split(',').map(x=>x.trim());
+    return lines.map(l=>{
+      const cols = l.split(',').map(x=>x.trim());
+      const obj={}; head.forEach((h,i)=>obj[h]=cols[i]);
+      return obj;
+    });
+  }
+  function download(name, content){
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([content], {type:'text/plain'}));
+    a.download = name; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  }
+  function rebuildIndex(){
+    INDEX.length=0;
+    DB.forEach((x,i)=> INDEX.push({k:x.nom.toLowerCase(), i}));
+  }
+
+  // Aperçu catalogue
+  function renderCatalogPreview(){
+    const container = document.getElementById('catalog-preview');
+    const rows = DB.slice().sort((a,b)=>a.nom.localeCompare(b.nom,'fr')).map(x=>
+      `<div>${x.nom} — <span class="muted">${x.lipides} g lip., ${x.kcal} kcal/100 g${x.portion_g?`, portion ≈ ${x.portion_g} g`:''}</span></div>`
+    );
+    container.innerHTML = rows.join('');
+  }
+  renderCatalogPreview();
+  </script>
+</body>
+</html>
