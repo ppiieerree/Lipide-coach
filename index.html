@@ -1,208 +1,176 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Lipido-Coach — v2 (propre)</title>
-<style>
-  :root{--fg:#111;--bg:#fff;--muted:#6b7280;--primary:#2563eb;}
-  *{box-sizing:border-box}
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial,sans-serif;margin:0;background:#f7f7f8;color:var(--fg);}
-  header{padding:20px;border-bottom:1px solid #e5e7eb;background:#fff;position:sticky;top:0;z-index:1}
-  h1{margin:0;font-size:1.25rem}
-  main{max-width:960px;margin:0 auto;padding:18px}
-  .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin:10px 0}
-  label{display:block;margin:.4rem 0 .2rem;font-weight:600}
-  textarea{width:100%;min-height:96px;padding:10px;border:1px solid #d1d5db;border-radius:10px;font-size:1rem;background:#fff}
-  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
-  .row>*{flex:1 1 320px}
-  button{background:var(--primary);color:#fff;border:none;border-radius:10px;padding:12px 14px;font-weight:600;cursor:pointer}
-  button:disabled{opacity:.5;cursor:not-allowed}
-  .help{color:var(--muted);font-size:.9rem}
-  table{border-collapse:collapse;width:100%}
-  th,td{border:1px solid #e5e7eb;padding:8px;text-align:center}
-  th{background:#f3f4f6;position:sticky;top:0;z-index:0}
-  td.aliment,th.aliment{text-align:left}
-  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.8rem;border:1px solid #e5e7eb;color:#374151;background:#fff;margin-left:6px}
-  .score{font-variant-numeric:tabular-nums}
-  .s20{background:#ecfdf5} .s15{background:#f0fdf4} .s10{background:#fff7ed} .s5{background:#fef2f2} .s1{background:#fee2e2}
-  .advice-list{margin:8px 0 0 18px}
-  footer{color:#6b7280;font-size:.85rem;padding:24px;text-align:center}
-</style>
-</head>
-<body>
-<header>
-  <h1>Lipido-Coach <span class="pill">v2</span></h1>
-  <div class="help">Colle ton menu (ex : <i>saumon, riz complet, courgettes, huile d’olive</i>). Échelle 1→20 : 20 = très bénéfique pour le paramètre ciblé, 1 = très défavorable.</div>
-</header>
-
-<main>
-  <section class="card">
-    <div class="row">
-      <div>
-        <label for="repas">Ton repas</label>
-        <textarea id="repas" placeholder="Sépare par virgule, point-virgule, retour à la ligne, ‘et’, ‘/’ ou ‘+’.&#10;Ex : omelette, pain complet et avocat / tomate + huile d’olive"></textarea>
-        <div class="help">Raccourci : <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Entrée</kbd> pour analyser.</div>
-      </div>
-      <div style="max-width:240px">
-        <button id="analyser">Analyser</button>
-        <div class="help" style="margin-top:8px">Conseils générés automatiquement en dessous du tableau.</div>
-      </div>
-    </div>
-  </section>
-
-  <section id="resultats" class="card" style="display:none">
-    <h2>Notes par aliment</h2>
-    <div style="overflow:auto;max-height:55vh;margin-top:8px">
-      <table id="tableau">
-        <thead>
-          <tr>
-            <th class="aliment">Aliment</th>
-            <th>LDL</th><th>HDL</th><th>Triglyc.</th><th>Glycémie</th><th>Stéatose</th><th>HTA</th>
-            <th>Score</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </section>
-
-  <section id="synthese" class="card" style="display:none">
-    <h2>Résumé & conseils</h2>
-    <div id="resume" class="help" style="margin-bottom:6px"></div>
-    <ul id="conseils" class="advice-list"></ul>
-  </section>
-</main>
-
-<footer>© 2025 — Lipido-Coach v2. Fichier statique, aucune transmission réseau.</footer>
-
 <script>
-/* --- Profils (1=très défavorable → 20=très bénéfique) : [LDL, HDL, TG, Gly, Steatose, HTA] --- */
+// ====== Barèmes (1 très défavorable → 20 très bénéfique) ======
 const PROFILES = {
-  LEGUMES_FRAIS:[19,18,19,20,20,20], FRUITS_ENTIERS:[17,16,17,16,18,18], LEGUMINEUSES:[18,16,17,17,19,19],
-  CEREALES_COMPLETES:[15,12,14,15,16,16], OLEAGINEUX:[16,18,16,13,16,16],
-  POISSONS_GRAS:[18,19,18,17,18,18], POISSONS_MAIGRES:[16,15,16,16,17,17],
-  VOLAILLE_BLANCHE:[13,12,13,14,14,14], VIANDE_ROUGE:[8,8,9,12,10,10], CHARCUTERIE:[4,5,6,10,6,6],
-  FROMAGES_GRAS:[7,9,9,11,10,9], HUILE_OLIVE:[17,18,17,17,18,18], HUILE_COLZA_NOIX:[18,18,18,17,18,18],
-  HUILE_SAT_TRANS:[5,6,5,10,7,8], PRODUITS_LAITIERS_ECR:[13,12,13,13,13,13],
-  SUCRES_AJOUTES:[5,5,4,5,7,12], BOISSON_SUCRE:[4,5,3,4,6,12], ALCOOL_MODERE:[9,11,8,9,6,9],
-  ALCOOL_FORT:[6,7,5,7,4,8], FRITURE_SALEE:[6,7,6,9,7,6], PAIN_BLANC_PATES:[10,9,10,9,11,12],
-  SUBSTITUTS_VEG_PROT:[15,14,15,14,15,15],
+  LEGUMES_FRAIS:        [19,18,19,20,20,20],
+  LEGUMES_FECULENTS:    [12,11,12,12,12,12],
+  FRUITS_ENTIERS:       [17,16,17,16,18,18],
+  LEGUMINEUSES:         [18,16,17,17,19,19],
+  CEREALES_COMPLETES:   [15,12,14,15,16,16],
+  CEREALES_RAFFINEES:   [10,9,10,9,11,12],
+  OLEAGINEUX_GRAINES:   [16,18,16,13,16,16],
+  POISSONS_GRAS:        [18,19,18,17,18,18],
+  POISSONS_MAIGRES:     [16,15,16,16,17,17],
+  FRUITS_DE_MER:        [15,14,15,15,16,16],
+  VOLAILLE_BLANCHE:     [13,12,13,14,14,14],
+  VIANDE_ROUGE:         [8, 8, 9, 12,10,10],
+  CHARCUTERIE:          [4, 5, 6, 10,6, 6],
+  FROMAGES_GRAS:        [7, 9, 9, 11,10, 9],
+  LAITAGES_ECREMES:     [13,12,13,13,13,13],
+  LAITS_VEGETAUX_NS:    [14,12,13,13,14,14],
+  HUILE_OLIVE:          [17,18,17,17,18,18],
+  HUILE_COLZA_NOIX_LIN: [18,18,18,17,18,18],
+  HUILES_SAT_TRANS:     [5, 6, 5, 10,7, 8],
+  SUCRES_AJOUTES:       [5, 5, 4, 5, 7,12],
+  BOISSONS_SUCREES:     [4, 5, 3, 4, 6,12],
+  BOISSONS_LIGHT_EDULCO:[11,10,11,12,11,11], // sodas “zero/light” (sans sucre)
+  ALCOOL_MODERE:        [9,11, 8, 9, 6, 9],
+  ALCOOL_FORT:          [6, 7, 5, 7, 4, 8],
+  FRITURE_SALEE:        [6, 7, 6, 9, 7, 6],
+  SAUCES_SALEES_SODIUM: [10,10,10,12,11, 6],
+  SAUCES_GRASSES_SUCRE: [7, 7, 6, 9, 8, 9],
+  CHOCOLAT_NOIR_70:     [12,13,11,11,11,12],
 };
-/* Dictionnaire d’aliments courants → catégories */
-const DICT = {
-  "saumon":"POISSONS_GRAS","maquereau":"POISSONS_GRAS","sardines":"POISSONS_GRAS","thon":"POISSONS_MAIGRES",
-  "cabillaud":"POISSONS_MAIGRES","colin":"POISSONS_MAIGRES","poulet":"VOLAILLE_BLANCHE","dinde":"VOLAILLE_BLANCHE",
-  "steak":"VIANDE_ROUGE","boeuf":"VIANDE_ROUGE","agneau":"VIANDE_ROUGE","porc":"VIANDE_ROUGE",
-  "jambon":"CHARCUTERIE","saucisson":"CHARCUTERIE","bacon":"CHARCUTERIE","chorizo":"CHARCUTERIE","salami":"CHARCUTERIE",
-  "fromage":"FROMAGES_GRAS","parmesan":"FROMAGES_GRAS","cheddar":"FROMAGES_GRAS","camembert":"FROMAGES_GRAS",
-  "yaourt 0%":"PRODUITS_LAITIERS_ECR","yaourt nature":"PRODUITS_LAITIERS_ECR","skyr":"PRODUITS_LAITIERS_ECR","cottage":"PRODUITS_LAITIERS_ECR",
-  "huile d’olive":"HUILE_OLIVE","huile d'olive":"HUILE_OLIVE","huile de colza":"HUILE_COLZA_NOIX","huile de noix":"HUILE_COLZA_NOIX",
-  "beurre":"HUILE_SAT_TRANS","margarine hydrogénée":"HUILE_SAT_TRANS",
-  "avocat":"OLEAGINEUX","noix":"OLEAGINEUX","amandes":"OLEAGINEUX","noisettes":"OLEAGINEUX","pistaches":"OLEAGINEUX","noix de cajou":"OLEAGINEUX",
-  "lentilles":"LEGUMINEUSES","pois chiches":"LEGUMINEUSES","haricots rouges":"LEGUMINEUSES",
-  "quinoa":"CEREALES_COMPLETES","riz complet":"CEREALES_COMPLETES","riz brun":"CEREALES_COMPLETES",
-  "riz blanc":"PAIN_BLANC_PATES","pâtes complètes":"CEREALES_COMPLETES","pâtes":"PAIN_BLANC_PATES",
-  "pain complet":"CEREALES_COMPLETES","pain":"PAIN_BLANC_PATES","flocons d’avoine":"CEREALES_COMPLETES","flocons d'avoine":"CEREALES_COMPLETES",
-  "pizza":"FROMAGES_GRAS","frites":"FRITURE_SALEE","mayonnaise":"HUILE_SAT_TRANS","ketchup":"SUCRES_AJOUTES","miel":"SUCRES_AJOUTES",
-  "confiture":"SUCRES_AJOUTES","pâtisserie":"SUCRES_AJOUTES","soda":"BOISSON_SUCRE","coca":"BOISSON_SUCRE","jus d’orange":"BOISSON_SUCRE","jus d'orange":"BOISSON_SUCRE",
-  "bière":"ALCOOL_MODERE","vin":"ALCOOL_MODERE","whisky":"ALCOOL_FORT","vodka":"ALCOOL_FORT","chips":"FRITURE_SALEE",
-  "tomate":"LEGUMES_FRAIS","courgette":"LEGUMES_FRAIS","brocoli":"LEGUMES_FRAIS","salade":"LEGUMES_FRAIS","épinards":"LEGUMES_FRAIS","epinards":"LEGUMES_FRAIS","carottes":"LEGUMES_FRAIS",
-  "pomme":"FRUITS_ENTIERS","banane":"FRUITS_ENTIERS","poire":"FRUITS_ENTIERS","orange":"FRUITS_ENTIERS",
-  "pois gourmands":"LEGUMES_FRAIS","tofu":"SUBSTITUTS_VEG_PROT","tempeh":"SUBSTITUTS_VEG_PROT","seitan":"SUBSTITUTS_VEG_PROT"
+
+// ====== Normalisation ======
+const norm = s => s
+  .toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  .replace(/’/g,"'").replace(/[\.\(\)]/g,' ')
+  .replace(/\s+/g,' ').trim();
+
+// ====== Listes d'aliments étendues ======
+const LISTES = {
+  POISSONS_GRAS: ['saumon','truite','sardines','maquereau','hareng','anchois','thon rouge','anguille'],
+  POISSONS_MAIGRES: ['cabillaud','colin','merlu','lieu','haddock','carrelet','sole','tilapia','perche','brochet','morue'],
+  FRUITS_DE_MER: ['crevettes','gambas','langoustines','moules','coques','palourdes','huitres','huîtres','calamar','poulpe','crabe','tourteau','homard'],
+  VOLAILLE_BLANCHE: ['poulet','blanc de poulet','dinde','blanc de dinde','escalope de poulet','poulet roti','poulet rôti'],
+  VIANDE_ROUGE: ['boeuf','bœuf','steak','entrecote','entrecôte','faux filet','rumsteck','joue de boeuf','agneau','cotelette agneau','mouton','veau','porc','cote de porc','côte de porc'],
+  CHARCUTERIE: ['jambon','jambon cru','jambon blanc','saucisson','chorizo','salami','bacon','lard','pancetta','coppa','rosette','andouille','andouillette','rillettes','pâté','pate en croute','knack','saucisse','merguez','chipolata','mortadelle','boudin noir'],
+  FROMAGES_GRAS: ['camembert','brie','coulommiers','chaource','reblochon','munster','epoisses','époisses','roquefort','bleu','fourme d ambert','comte','comté','emmental','gouda','cheddar','raclette','tomme','parmesan','mozzarella','feta','fêta','buche de chevre','bûche de chèvre','chevre','chèvre'],
+  LAITAGES_ECREMES: ['yaourt 0%','yaourt nature','skyr','fromage blanc 0%','cottage cheese','petit suisse 0%','lait ecreme','lait demi ecreme'],
+  LAITS_VEGETAUX_NS: ['lait de soja non sucre','lait d amande non sucre','lait d avoine non sucre','boisson vegetale non sucree','boisson végétale non sucrée'],
+  HUILE_OLIVE: ['huile d olive','olive huile'],
+  HUILE_COLZA_NOIX_LIN: ['huile de colza','huile de noix','huile de lin','huile de pepins de raisin','huile de pépins de raisin'],
+  HUILES_SAT_TRANS: ['beurre','beurre clarifie','ghee','huile de palme','huile de coco','margarine hydrogenee','graisse de canard','saindoux'],
+  OLEAGINEUX_GRAINES: ['noix','noix de pecan','noix de macadamia','amandes','noisettes','pistaches','noix de cajou','cacahuetes','cacahuètes','beurre de cacahuete sans sucre','graines de tournesol','graines de courge','graines de lin','graines de sesame','graines de sésame','tahini'],
+  LEGUMES_FRAIS: ['salade','laitue','roquette','mache','mâche','epinards','épinards','blettes','chou','chou kale','chou rouge','chou fleur','chou-fleur','brocoli','haricots verts','courgette','aubergine','poivron','tomate','concombre','radis','carotte','fenouil','celeri branche','céleri branche','oignon','ail','champignons','asperges','endives','navet','betterave cuite','courge','butternut','potimarron','artichaut'],
+  LEGUMES_FECULENTS: ['pomme de terre vapeur','pomme de terre','patate douce','mais','maïs','petits pois','igname','manioc'],
+  FRUITS_ENTIERS: ['pomme','poire','banane','orange','mandarine','clementine','clémentine','citron','pamplemousse','raisin','fraise','framboise','myrtille','mûre','mure','cerise','abricot','peche','pêche','nectarine','prune','kiwi','mangue','ananas','papaye','grenade','figue','dattes'],
+  LEGUMINEUSES: ['lentilles','pois chiches','pois casses','pois cassés','haricots rouges','haricots blancs','haricots noirs','flageolets','soja edamame','edamame','feves','fèves'],
+  CEREALES_COMPLETES: ['pain complet','pain au levain integral','pain au levain intégral','pain seigle','pain sarrasin','pain aux cereales','riz complet','riz brun','quinoa','pates completes','pâtes complètes','pates semi completes','boulgour complet','orge','millet','flocons d avoine','son d avoine','muesli sans sucre'],
+  CEREALES_RAFFINEES: ['pain blanc','baguette','pain de mie','biscotte','riz blanc','pates','pâtes','semoule','couscous','polenta','tortilla ble','wrap','galette de riz','crepes farine blanche','crêpes farine blanche','viennoiserie nature'],
+  SUCRES_AJOUTES: ['sucre','cassonade','sirop','miel','confiture','pate a tartiner','pâte à tartiner','chocolat au lait','barre chocolatée','bonbons','biscuits','patisserie','pâtisserie','croissant','pain au chocolat','brioche sucree','brioche sucrée','gaufre sucree','pancakes sirop','glace','dessert lacte sucre','dessert lacté sucré'],
+  BOISSONS_SUCREES: ['soda','cola','coca','pepsi','orangina','oasis','limonade','ice tea sucre','thé glacé sucré','boisson energetique','boisson énergétique','red bull','monster','jus d orange','jus d\'orange','jus de pomme','jus de fruits','nectar','smoothie sucre','smoothie sucré'],
+  BOISSONS_LIGHT_EDULCO: ['coca zero','coca zéro','coca light','pepsi max','ice tea zero','thé glacé zéro','red bull sugarfree','boisson 0% sucre','soda zero','soda zéro','orangina zero','oasis zero'],
+  ALCOOL_MODERE: ['biere','bière','vin','cidre','spritz','aperol spritz'],
+  ALCOOL_FORT: ['whisky','vodka','rhum','gin','tequila','liqueur','pastis','cognac'],
+  FRITURE_SALEE: ['frites','patatas bravas','beignets sales','beignets salés','nuggets','cordon bleu','escalope panee','escalope panée','poisson pane','poisson pané','tempura','onion rings','chips','tacos frits'],
+  SAUCES_SALEES_SODIUM: ['sauce soja','tamari','maggi','nuoc mam','nuoc-mam','anchovy sauce','pate miso','pâte miso','bouillon cube','cornichons','olives salees','olives salées'],
+  SAUCES_GRASSES_SUCRE: ['mayonnaise','sauce bearnaise','béarnaise','hollandaise','aioli','aïoli','sauce barbecue','bbq','ketchup','sauce cocktail','andalouse','samourai','samouraï','biggy burger','vinaigrette toute prete','vinaigrette toute prête'],
+  CHOCOLAT_NOIR_70: ['chocolat noir 70%','chocolat noir','cacao 100%'],
+
+  // === Marques & produits courants (FR) ===
+  SUCRES_AJOUTES_plus: [
+    'nutella','kinder bueno','kinder maxi','kinder country','bn','granola lu','prince lu','oreo','pepito','pépito','petit beurre','petit écolier',
+    'danette','danonino','yop','actimel','crème dessert','maltesers','twix','snickers','mars','lion','bounty','haribo','skittles',
+    'nesquik','cereales chocapic','céréales chocapic','chocapic','golden grahams','frosties','smacks','miel pops',
+    'magnum','haagen dazs','häagen dazs','haagen-dazs','ben and jerry'
+  ],
+  BOISSONS_SUCREES_plus: [
+    'oasis tropical','oasis pomme cassis framboise','orangina rouge','fanta','sprite','schweppes agrum','schweppes tonic','icetea peach','liptonic'
+  ],
+  BOISSONS_LIGHT_EDULCO_plus: [
+    'coca zero cherry','coca zero caffeine free','pepsi max cherry','schweppes zero','fanta zero','sprite zero'
+  ],
+
+  // === Plats/brasserie & restauration rapide (classés par “dominante”) ===
+  FRITURE_SALEE_plus: ['steak frites','moules frites','fish and chips','calamar frit','beignets de poulet','fondu de camembert frit'],
+  FROMAGES_GRAS_plus: ['croque monsieur','croque-monsieur','tartiflette','raclette','fondue savoyarde','pizza','pizza 4 fromages','pizza quatre fromages','pizza royale','gratin dauphinois','cordon bleu (plat)'],
+  CHARCUTERIE_plus: ['kebab sauce blanche','assiette charcuterie','planche charcuterie'],
+  SAUCES_GRASSES_SUCRE_plus: ['salade cesar','salade césar','caesar salad','burger sauce','wrap sauce blanche'],
+  CEREALES_RAFFINEES_plus: ['burger','big mac','whopper','tacos','panini','baguette sandwich','croissant jambon fromage','pates carbo','pâtes carbo','pates bolognaise','pâtes bolognaise','sushi','makis','poke bowl riz blanc'],
+  CEREALES_COMPLETES_plus: ['buddha bowl','poke bowl quinoa','salade quinoa','bol avoine','porridge avoine'],
+  VOLAILLE_BLANCHE_plus: ['tikka poulet (sans sauce)','poulet grillé simple'],
+  VIANDE_ROUGE_plus: ['tartare de boeuf','entrecote grillée','entrecôte grillée']
 };
-/* Fallback par mots-clés si non trouvé */
-const KEYWORD_FALLBACKS=[
-  {kw:["légume","salade","crudité","crudites","tomate","concombre","courgette","brocoli","carotte","épinard","epinard"],cat:"LEGUMES_FRAIS"},
-  {kw:["fruit","pomme","poire","banane","orange","baie","framboise","fraise","raisin"],cat:"FRUITS_ENTIERS"},
-  {kw:["lentille","pois chiche","haricot"],cat:"LEGUMINEUSES"},
-  {kw:["complet","quinoa","avoine","son","seigle","épeautre","epautre","sarrasin","riz brun"],cat:"CEREALES_COMPLETES"},
-  {kw:["pain","riz","pâtes","pates","semoule","blanc"],cat:"PAIN_BLANC_PATES"},
-  {kw:["saumon","maquereau","sardine"],cat:"POISSONS_GRAS"},
-  {kw:["cabillaud","colin","merlu","lieu"],cat:"POISSONS_MAIGRES"},
-  {kw:["poulet","dinde","volaille"],cat:"VOLAILLE_BLANCHE"},
-  {kw:["boeuf","agneau","veau","porc","steak","entrecôte","entrecote"],cat:"VIANDE_ROUGE"},
-  {kw:["jambon","saucisson","bacon","charcuterie","chorizo","salami"],cat:"CHARCUTERIE"},
-  {kw:["fromage","brie","emmental","cheddar","roquefort","raclette"],cat:"FROMAGES_GRAS"},
-  {kw:["huile d'olive","huile d’olive","olive"],cat:"HUILE_OLIVE"},
-  {kw:["huile de colza","colza","noix"],cat:"HUILE_COLZA_NOIX"},
-  {kw:["beurre","crème","mayonnaise","margarine"],cat:"HUILE_SAT_TRANS"},
-  {kw:["yaourt","skyr","cottage","fromage blanc"],cat:"PRODUITS_LAITIERS_ECR"},
-  {kw:["sucre","pâtisserie","gateau","gâteau","chocolat au lait","bonbon","sirop"],cat:"SUCRES_AJOUTES"},
-  {kw:["soda","cola","boisson sucrée","jus"],cat:"BOISSON_SUCRE"},
-  {kw:["bière","vin"],cat:"ALCOOL_MODERE"},
-  {kw:["whisky","vodka","rhum","gin"],cat:"ALCOOL_FORT"},
-  {kw:["frite","chips","beignet","pané","pane"],cat:"FRITURE_SALEE"},
-  {kw:["tofu","tempeh","seitan"],cat:"SUBSTITUTS_VEG_PROT"}
+
+// Intégration des “_plus”
+LISTES.SUCRES_AJOUTES.push(...(LISTES.SUCRES_AJOUTES_plus||[]));
+LISTES.BOISSONS_SUCREES.push(...(LISTES.BOISSONS_SUCREES_plus||[]));
+LISTES.BOISSONS_LIGHT_EDULCO.push(...(LISTES.BOISSONS_LIGHT_EDULCO_plus||[]));
+LISTES.FRITURE_SALEE.push(...(LISTES.FRITURE_SALEE_plus||[]));
+LISTES.FROMAGES_GRAS.push(...(LISTES.FROMAGES_GRAS_plus||[]));
+LISTES.CHARCUTERIE.push(...(LISTES.CHARCUTERIE_plus||[]));
+LISTES.SAUCES_GRASSES_SUCRE.push(...(LISTES.SAUCES_GRASSES_SUCRE_plus||[]));
+LISTES.CEREALES_RAFFINEES.push(...(LISTES.CEREALES_RAFFINEES_plus||[]));
+LISTES.CEREALES_COMPLETES.push(...(LISTES.CEREALES_COMPLETES_plus||[]));
+LISTES.VOLAILLE_BLANCHE.push(...(LISTES.VOLAILLE_BLANCHE_plus||[]));
+LISTES.VIANDE_ROUGE.push(...(LISTES.VIANDE_ROUGE_plus||[]));
+['SUCRES_AJOUTES_plus','BOISSONS_SUCREES_plus','BOISSONS_LIGHT_EDULCO_plus','FRITURE_SALEE_plus','FROMAGES_GRAS_plus','CHARCUTERIE_plus','SAUCES_GRASSES_SUCRE_plus','CEREALES_RAFFINEES_plus','CEREALES_COMPLETES_plus','VOLAILLE_BLANCHE_plus','VIANDE_ROUGE_plus'].forEach(k=>delete LISTES[k]);
+
+// ====== Dictionnaire construit ======
+function makeDict(def){
+  const map={};
+  for(const [cat,arr] of Object.entries(def)){
+    for(const item of arr) map[norm(item)]=cat;
+  }
+  return map;
+}
+const DICT = makeDict(LISTES);
+
+// ====== Fallbacks sémantiques (sécurité) ======
+const KEYWORD_FALLBACKS = [
+  {kw:['legume','crudite','salade','roquette','epinard','brocoli','chou','carotte','courgette','poivron','tomate'], cat:'LEGUMES_FRAIS'},
+  {kw:['patate','pomme de terre','mais','petits pois','patate douce'], cat:'LEGUMES_FECULENTS'},
+  {kw:['fruit','pomme','poire','banane','framboise','fraise','raisin','agrumes','orange'], cat:'FRUITS_ENTIERS'},
+  {kw:['lentille','pois chiche','haricot','flageolet','edamame','feve'], cat:'LEGUMINEUSES'},
+  {kw:['complet','levain','seigle','sarrasin','avoine','quinoa','orge','riz brun'], cat:'CEREALES_COMPLETES'},
+  {kw:['pain','baguette','riz blanc','pates','semoule','couscous','tortilla','polenta','galette'], cat:'CEREALES_RAFFINEES'},
+  {kw:['noix','amande','noisette','pistache','cacahuete','graines'], cat:'OLEAGINEUX_GRAINES'},
+  {kw:['saumon','sardine','maquereau','hareng','truite'], cat:'POISSONS_GRAS'},
+  {kw:['cabillaud','colin','merlu','sole','tilapia','morue'], cat:'POISSONS_MAIGRES'},
+  {kw:['crevette','moule','huitre','calamar','poulpe'], cat:'FRUITS_DE_MER'},
+  {kw:['poulet','dinde','volaille'], cat:'VOLAILLE_BLANCHE'},
+  {kw:['boeuf','porc','agneau','veau','steak','entrecote'], cat:'VIANDE_ROUGE'},
+  {kw:['jambon','saucisson','bacon','lard','chorizo','charcuterie'], cat:'CHARCUTERIE'},
+  {kw:['fromage','raclette','tartiflette','pizza','quiche','croque'], cat:'FROMAGES_GRAS'},
+  {kw:['yaourt','skyr','fromage blanc','lait ecreme'], cat:'LAITAGES_ECREMES'},
+  {kw:['soja non sucre','amande non sucre','avoine non sucre','boisson vegetale'], cat:'LAITS_VEGETAUX_NS'},
+  {kw:['huile olive'], cat:'HUILE_OLIVE'},
+  {kw:['huile colza','huile noix','huile lin','pepins de raisin'], cat:'HUILE_COLZA_NOIX_LIN'},
+  {kw:['beurre','palme','coco','margarine'], cat:'HUILES_SAT_TRANS'},
+  {kw:['sucre','confiture','patisserie','biscuit','chocolat au lait','bonbon','tartiner','nutella','kinder','oreo','bn','prince'], cat:'SUCRES_AJOUTES'},
+  {kw:['soda','cola','oasis','orangina','fanta','sprite','jus','nectar','energy drink','the glace'], cat:'BOISSONS_SUCREES'},
+  {kw:['zero','light','sans sucre','sugarfree','max'], cat:'BOISSONS_LIGHT_EDULCO'},
+  {kw:['biere','vin','cidre','spritz'], cat:'ALCOOL_MODERE'},
+  {kw:['whisky','vodka','rhum','gin','tequila','liqueur','pastis'], cat:'ALCOOL_FORT'},
+  {kw:['frites','pane','nuggets','beignet','chips','tempura','onion rings'], cat:'FRITURE_SALEE'},
+  {kw:['soja sauce','tamari','bouillon','maggi','nuoc mam'], cat:'SAUCES_SALEES_SODIUM'},
+  {kw:['mayonnaise','bbq','ketchup','bearnaise','hollandaise','aioli','cesar'], cat:'SAUCES_GRASSES_SUCRE'},
+  {kw:['chocolat noir'], cat:'CHOCOLAT_NOIR_70'},
+  {kw:['sushi','maki','poke bowl'], cat:'CEREALES_RAFFINEES'}
 ];
 
-function quantityModifier(t){
-  t=t.toLowerCase(); let f=1.0;
-  if(/\b(300|400|500)\s?g\b/.test(t) || /\b(grandes?|double)\b/.test(t)) f-=0.05;
-  if(/\b(2|3|4)\s?(bières|bieres|verres|tranches|cuillères|cuilleres|c\.?à\.?s?)\b/.test(t)) f-=0.05;
-  if(/\b(petite|50\s?g|100\s?g|1\s?c\.?à?\.?s?)\b/.test(t)) f+=0.03;
-  return Math.max(0.9, Math.min(1.05, f));
-}
+// ====== Classif robuste ======
 function classify(raw){
-  const item=raw.trim().toLowerCase();
-  if(!item) return null;
-  if(DICT[item]) return DICT[item];
-  for(const k in DICT){ if(item.includes(k)) return DICT[k]; }
-  for(const r of KEYWORD_FALLBACKS){ for(const w of r.kw){ if(item.includes(w)) return r.cat; } }
+  const t = norm(raw);
+  if(!t) return null;
+  if(DICT[t]) return DICT[t];
+  for(const key in DICT){ if(t.includes(key)) return DICT[key]; }
+  for(const rule of KEYWORD_FALLBACKS){
+    for(const w of rule.kw){ if(t.includes(norm(w))) return rule.cat; }
+  }
   return null;
 }
-function colorClass(v){ if(v>=17)return"s20"; if(v>=13)return"s15"; if(v>=9)return"s10"; if(v>=5)return"s5"; return"s1"; }
-function mean(a){ return a.reduce((x,y)=>x+y,0)/a.length; }
-function splitItems(txt){ return txt.replace(/\bet\b/gi, ",").split(/[,;\n\/\+]+/).map(s=>s.trim()).filter(Boolean); }
-
-function analyse(){
-  const txt=document.getElementById('repas').value;
-  const parts=splitItems(txt);
-  const tbody=document.querySelector('#tableau tbody'); tbody.innerHTML="";
-  const rows=[];
-  for(const p of parts){
-    const cat=classify(p);
-    const profile=cat?PROFILES[cat]:[10,10,10,10,10,10];
-    const qmod=quantityModifier(p);
-    const scored=profile.map(v=>Math.max(1,Math.min(20,Math.round(v*qmod))));
-    const avg=Math.round(mean(scored)*10)/10;
-    rows.push({aliment:p,cat,scored,avg});
-  }
-  if(rows.length===0){
-    document.getElementById('resultats').style.display="none";
-    document.getElementById('synthese').style.display="none";
-    return;
-  }
-  for(const r of rows){
-    const tr=document.createElement('tr');
-    const td0=document.createElement('td'); td0.className="aliment"; td0.textContent=r.aliment+" ";
-    const tag=document.createElement('span'); tag.className="pill"; tag.textContent=(r.cat?r.cat.replaceAll("_"," ").toLowerCase():"catégorie inconnue");
-    td0.appendChild(tag); tr.appendChild(td0);
-    ["LDL","HDL","TG","Gly","Stéatose","HTA"].forEach((_,i)=>{
-      const td=document.createElement('td'); td.className="score "+colorClass(r.scored[i]); td.textContent=r.scored[i]; tr.appendChild(td);
-    });
-    const tdAvg=document.createElement('td'); tdAvg.className="score "+colorClass(Math.round(r.avg)); tdAvg.textContent=r.avg.toFixed(1); tr.appendChild(tdAvg);
-    tbody.appendChild(tr);
-  }
-  document.getElementById('resultats').style.display="block";
-  const globalAvg=Math.round(mean(rows.map(r=>r.avg))*10)/10;
-  document.getElementById('resume').innerHTML=`Score moyen global : <b>${globalAvg.toFixed(1)}/20</b> — ${globalAvg>=15?"très favorable":(globalAvg>=12?"plutôt correct":"à améliorer")}.`;
-  const conseils=document.getElementById('conseils'); conseils.innerHTML="";
-  const lowLDL=rows.filter(r=>r.scored[0]<=9), lowHDL=rows.filter(r=>r.scored[1]<=9), highTG=rows.filter(r=>r.scored[2]<=9), highGly=rows.filter(r=>r.scored[3]<=9), stea=rows.filter(r=>r.scored[4]<=9), hta=rows.filter(r=>r.scored[5]<=9);
-  function li(t){ const el=document.createElement('li'); el.innerHTML=t; conseils.appendChild(el); }
-  if(lowLDL.length) li(`LDL : réduire/remplacer ${lowLDL.map(r=>"<b>"+r.aliment+"</b>").join(", ")} → +fibres (légumes, légumineuses) et huiles d’olive/colza.`);
-  if(lowHDL.length) li(`HDL : +poissons gras, huile d’olive/noix. Limiter ${lowHDL.map(r=>"<b>"+r.aliment+"</b>").join(", ")}.`);
-  if(highTG.length)  li(`Triglycérides : attention aux sucres/gras. Réduire ${highTG.map(r=>"<b>"+r.aliment+"</b>").join(", ")}.`);
-  if(highGly.length) li(`Glycémie : privilégier céréales complètes/légumineuses. Diminuer ${highGly.map(r=>"<b>"+r.aliment+"</b>").join(", ")}.`);
-  if(stea.length)    li(`Stéatose : limiter sucres/alcool et fritures : ${stea.map(r=>"<b>"+r.aliment+"</b>").join(", ")}.`);
-  if(hta.length)     li(`Hypertension : réduire sel/ultra-transformés, sauces et charcuteries : ${hta.map(r=>"<b>"+r.aliment+"</b>").join(", ")}.`);
-  if(conseils.children.length===0){ li("Rien d’alarme ici. Rester sur : légumes majoritaires, protéine maigre/poisson, céréales complètes, huiles riches en acides gras insaturés."); }
-}
-document.getElementById('analyser').addEventListener('click', analyse);
-document.getElementById('repas').addEventListener('keydown',(e)=>{ if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); analyse(); }});
-// Démo automatique à l’ouverture
-document.getElementById('repas').value="saumon, riz complet et courgettes / huile d’olive";
-analyse();
-</script>
-</body>
-</html>
+<<script>
+// === Ajout de plats précis ===
+LISTES.LEGUMINEUSES.push('cassoulet');
+LISTES.CEREALES_RAFFINEES.push(
+  'couscous','paella','risotto','galette complete','galette complète',
+  'bo bun','pho','pad thai','pizza margherita','lasagnes'
+);
+LISTES.CHARCUTERIE.push('choucroute garnie','pizza pepperoni','quiche lorraine');
+LISTES.FROMAGES_GRAS.push('raclette complete','raclette complète','tartiflette','fondue savoyarde','gratin dauphinois');
+LISTES.VIANDE_ROUGE.push('blanquette de veau','boeuf bourguignon');
+LISTES.CEREALES_COMPLETES.push('bibimbap');
+</script>/script>
